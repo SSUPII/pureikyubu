@@ -369,48 +369,114 @@ void DebugStop()
 	delete debugger;
 }
 
+int selectArgument(char* argument){
+	int returnValue;
+	if(strcmp("-H", argument) == 0 || strcmp("--help", argument) == 0){
+		returnValue = 0;
+	}else if(strcmp("-I", argument) == 0 || strcmp("--input", argument) == 0){
+		returnValue = 1;
+	}else if(strcmp("-D", argument) == 0 || strcmp("--data", argument) == 0){
+		returnValue = 2;
+	}else{
+		returnValue = -1;
+	}
+	return returnValue;
+}
+
+void printHelp(){
+	printf("Use: pureikyubu -I <file>\n"
+			"\n"
+			"Arguments:\n"
+				"\t-H, --help: Display this message\n"
+				"\t-I, --input <path> (required): Path to Gamecube executable file.\n"
+				"\t-D, --data <path>: Path to custom user data folder\n");
+}
+
 int main(int argc, char** argv)
 {
-	// Check parameters
 
-	if (argc < 2)
-	{
-		printf("Use: pureikyubu <file>\n");
-		return -1;
-	}
-
-	// Add UI methods
-
-	JdiAddNode(UI_JDI_JSON, UIReflector);
+	char* executablePath = nullptr;
+	char* customUserDataPath = nullptr;
 
 	// Say hello
 
 	printf("pureikyubu, emulator version %s\n", UI::SimpleJdi.GetVersion().c_str());
 
-	// Load file and run
+	// Check parameters
 
-	printf("Press any key to stop emulation...\n\n");
+	if (argc < 2)
+	{
+		printHelp();
+		return -1;
+	}
 
-	UI::SimpleJdi.LoadFile(argv[1]);
-	UI::SimpleJdi.Run();
-	DebugStart();
+	// Check for extra arguments
 
-	// Wait key press..
+	int selectedArgument;
+	bool needVariable = false;
+	for(unsigned int i = 1; i < argc; i++){
+		if(!needVariable){
+			selectedArgument = selectArgument(argv[i]);
 
-#ifdef _WINDOWS
-	_getch();
-#endif
+			switch(selectedArgument){
+				case 1:
+				case 2:
+					needVariable = true;
+					break;
+				default:
+					//TODO Boot IPL here instead, if present and implemented.
+					printHelp();
+					return -1;
+			}
+		}else{
+			switch(selectedArgument){
+				case 1:
+					executablePath = argv[i];
+					break;
+				case 2:
+					customUserDataPath = argv[i];
+					break;
+			}
+			needVariable = false;
+		}
+	}
 
-#ifdef _LINUX
-	getc(stdin);
-#endif
+	if(executablePath == nullptr || needVariable){
+		if(needVariable) printf("\n\tERR: An required variable has been omitted.\n\n");
+		printHelp();
+		return -1;
+	}else{
 
-	// Unload
+		// Add UI methods
 
-	UI::SimpleJdi.Unload();
-	JdiRemoveNode(UI_JDI_JSON);
-	DebugStop();
+		JdiAddNode(UI_JDI_JSON, UIReflector);
 
-	printf("\nThank you for flying pureikyubu airlines!\n");
+		// Load file and run
+
+		printf("Press any key to stop emulation...\n\n");
+
+		UI::SimpleJdi.LoadFile(executablePath);
+		UI::SimpleJdi.Run();
+		DebugStart();
+
+		// Wait key press..
+
+	#ifdef _WINDOWS
+		_getch();
+	#endif
+
+	#ifdef _LINUX
+		getc(stdin);
+	#endif
+
+		// Unload
+
+		UI::SimpleJdi.Unload();
+		JdiRemoveNode(UI_JDI_JSON);
+		DebugStop();
+
+		printf("\nThank you for flying pureikyubu airlines!\n");
+	}
+
 	return 0;
 }
